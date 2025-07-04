@@ -9,19 +9,22 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow // For reactive queries
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Database
+import androidx.room.Index
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Entity(tableName = "money_items")
+@Entity(tableName = "money_items", indices = [ Index(value = ["code"], unique = true) ])
 data class MoneyItem(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val person: String,
+    val amount: Double,
+    val person: String?=null,
+    @ColumnInfo(name = "code") val code: String,
     val type: String,
-    val phone: String?,
-    val date: Long,
-    val amount: Double
+    val phone: String?=null,
+    val date: Long
 )
 
 
@@ -55,6 +58,7 @@ interface MoneyDao {
     fun getItemById(itemId: Int): Flow<MoneyItem?>
 }
 
+
 data class PhoneTotal(
     val phone: String?,
     val totalAmount: Double
@@ -62,7 +66,7 @@ data class PhoneTotal(
 
 
 
-@Database(entities = [MoneyItem::class], version = 1, exportSchema = false)
+@Database(entities = [MoneyItem::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun moneyDao(): MoneyDao
