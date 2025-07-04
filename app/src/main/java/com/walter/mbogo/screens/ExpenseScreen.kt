@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.walter.mbogo.db.MoneyItem
 import com.walter.mbogo.utility.TransactionViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Similarly for ExpensesScreen:
 @Composable
@@ -49,9 +54,10 @@ fun ExpensesScreen(transactionViewModel: TransactionViewModel = viewModel()) {
 // Example Composable for displaying a single expense item
 @Composable
 fun ExpenseItemRow(item: MoneyItem) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text("Person: ${item.person}")
-        Text("Amount: ${item.amount}")
-        Text("Date: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.date))}")
+    Column(modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()) {
+        Text("${item.person}")
+        Text("${item.amount}")
+        Text(SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(item.date)))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
     }
 }

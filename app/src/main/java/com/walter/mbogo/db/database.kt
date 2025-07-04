@@ -31,7 +31,7 @@ data class MoneyItem(
 @Dao
 interface MoneyDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMoneyItem(item: MoneyItem)
 
     @Query("SELECT * FROM money_items WHERE type = :transactionType ORDER BY date DESC")

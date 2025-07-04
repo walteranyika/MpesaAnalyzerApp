@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,12 +50,13 @@ fun IncomeScreen(transactionViewModel: TransactionViewModel = viewModel()) {
 
 @Composable
 fun IncomeItemRow(item: MoneyItem) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(item.person)
+    Column(modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()) {
+        Text("${item.person}")
         Text("Ksh ${item.amount}")
         Text(
             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 .format(java.util.Date(item.date))
         )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
     }
 }
