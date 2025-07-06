@@ -7,21 +7,25 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.walter.mbogo.db.AppDatabase
 import com.walter.mbogo.db.MoneyItem
+import com.walter.mbogo.db.SimpleDataManager
 import com.walter.mbogo.utility.ProcessedMessage
 import com.walter.mbogo.utility.analyzeReceivedMessages
 import com.walter.mbogo.utility.analyzeSentMessages
+import kotlinx.coroutines.flow.last
 
 class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
     CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         val moneyDao = AppDatabase.getDatabase(applicationContext).moneyDao()
+        val dataManager = SimpleDataManager(applicationContext)
+
 
         try {
             Log.d("MpesaSmsWorker", "Starting MPESA SMS processing.")
             // --- Your SMS Reading and Parsing Logic ---
             // 1. Get last processed timestamp (if implementing delta-updates)
-            //    val lastTimestamp = inputData.getLong("LAST_PROCESSED_TIMESTAMP", 0L)
+            var lastTimestamp = dataManager.lastReadTimestampFlow.last()
             //    Or, for initial import, you might not need this, or query all.
 
             val contentResolver = applicationContext.contentResolver
@@ -35,8 +39,8 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
             // e.g., Telephony.Sms.DATE + " > ?", arrayOf(lastTimestamp.toString())
             // For initial scan, you might read a large batch or all relevant ones.
             // Be mindful of performance with very large inboxes.
-            val selection = Telephony.Sms.ADDRESS + " = ?"
-            val selectionArgs = arrayOf("MPESA")
+            val selection = Telephony.Sms.ADDRESS + " = ? AND " + Telephony.Sms.DATE + " >= ?"
+            val selectionArgs = arrayOf("MPESA", lastTimestamp.toString())
             val cursor = contentResolver.query(
                 Telephony.Sms.Inbox.CONTENT_URI,
                 projection,
@@ -54,41 +58,34 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
                     val body = it.getString(bodyIndex)
                     val date = it.getLong(dateIndex)
                     val address = it.getString(addressIndex)
+                    if (date > lastTimestamp) {
+                        lastTimestamp = date
+                    }
 
-                    var result : ProcessedMessage? = null
+                    var result: ProcessedMessage? = null
                     if (body.contains("You have received")) {
-                         result = analyzeReceivedMessages(body, date)
-                    }else if(body.contains("sent to ")){
-                          result = analyzeSentMessages(body, date)
-                    }else{
+                        result = analyzeReceivedMessages(body, date)
+                    } else if (body.contains("sent to ")) {
+                        result = analyzeSentMessages(body, date)
+                    } else {
                         result = null
                     }
 
                     Log.d("PROCESSED", "doWork: $result")
-                    if (result != null){
-                        val moneyItem = MoneyItem(amount = result.amount, person = result.name, type = result.type, phone = result.phone, date = result.date, code = result.code)
+                    if (result != null) {
+                        val moneyItem = MoneyItem(
+                            amount = result.amount,
+                            person = result.name,
+                            type = result.type,
+                            phone = result.phone,
+                            date = result.date,
+                            code = result.code
+                        )
                         moneyDao.insertMoneyItem(moneyItem)
                         Log.d("MpesaSmsWorker", "Inserted: $moneyItem")
                     }
-                    // TODO: Your sophisticated MPESA message parsing logic here
-                    // This is a placeholder for your actual parsing
-                   /* if (body != null && body.contains("MPESA", ignoreCase = true) *//* more specific checks *//*) {
-                        // --- Extracted from your logic ---
-                        // val person: String = extractPerson(body)
-                        // val type: String = extractType(body) // "INCOME" or "EXPENSE"
-                        // val phone: String? = extractPhone(body)
-                        // val amount: Double = extractAmount(body)
-                        // val transactionDate: Long = date // from SMS
-
-                        // For example:
-                        val moneyItem = parseMpesaMessageToMoneyItem(body, date)
-
-                        if (moneyItem != null) {
-                            moneyDao.insertMoneyItem(moneyItem)
-                            Log.d("MpesaSmsWorker", "Inserted: $moneyItem")
-                        }
-                    }*/
                 }
+                dataManager.storeLastRead(lastTimestamp)
             }
             Log.d("MpesaSmsWorker", "MPESA SMS processing finished.")
             // TODO: Store the timestamp of the latest processed message for delta updates

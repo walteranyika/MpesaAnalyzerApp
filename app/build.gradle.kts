@@ -69,6 +69,9 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.7")
 
+    implementation("androidx.biometric:biometric-ktx:1.4.0-alpha02")
+
+
 
 
     implementation(libs.androidx.core.ktx)

@@ -1,13 +1,20 @@
 package com.walter.mbogo
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -20,9 +27,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,11 +47,12 @@ import com.walter.mbogo.nav.bottomNavItems
 import com.walter.mbogo.screens.ChartsScreen
 import com.walter.mbogo.screens.ExpensesScreen
 import com.walter.mbogo.screens.IncomeScreen
-import com.walter.mbogo.screens.SmsPermissionRequester
+import com.walter.mbogo.security.BiometricHelper
 import com.walter.mbogo.ui.theme.MbogoTheme
 import com.walter.mbogo.workers.MpesaSmsWorker
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -52,87 +65,76 @@ class MainActivity : ComponentActivity() {
 }
 
 
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun NavigationBarMotherScreen() { // Renamed from your original example for clarity
+    val context = LocalContext.current
+    val activity = context as FragmentActivity
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+
+    val biometricHelper = remember {
+        BiometricHelper(
+            activity = activity,
+            onAuthSuccess = {
+                isAuthenticated = true
+                errorMessage = null
+            },
+            onAuthError = {
+                errorMessage = it
+            }
+        )
+    }
+
+
+    LaunchedEffect(Unit) {
+        if (isBiometricAvailable(context)) {
+            biometricHelper.authenticate()
+        }
+    }
+
     val navController = rememberNavController()
-    Scaffold(
-        bottomBar = { AppBottomNavigationBar(navController = navController) }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Destinations.Income.route, // Your starting screen
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Destinations.Income.route) {
-                IncomeScreen()
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Scaffold(
+            bottomBar = { AppBottomNavigationBar(navController = navController) }
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = Destinations.Income.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(Destinations.Income.route) { IncomeScreen() }
+                composable(Destinations.Expenses.route) { ExpensesScreen() }
+                composable(Destinations.Graphs.route) { ChartsScreen() }
             }
-            composable(Destinations.Expenses.route) {
-                ExpensesScreen()
-            }
-            composable(Destinations.Graphs.route) {
-                ChartsScreen()
-            }
+
+            // Your SMS permission handling here as before...
         }
 
-        var hasSmsPermission by remember { mutableStateOf(false) } // Manage state if needed higher up
-        val context = LocalContext.current
-        var initialSmsProcessingStarted by remember { mutableStateOf(false) }
-         //Check initial permission status (optional, if you want to update UI immediately)
-         LaunchedEffect(Unit) {
-             hasSmsPermission = ContextCompat.checkSelfPermission(
-                 context,
-                 Manifest.permission.READ_SMS
-             ) == PackageManager.PERMISSION_GRANTED
-         }
-        if (!hasSmsPermission) {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.READ_SMS
-                ) == PackageManager.PERMISSION_GRANTED
+        // 🔒 Overlay if not authenticated
+        if (!isAuthenticated) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .blur(20.dp) // Requires Android 12+
+                    .zIndex(1f),
+                contentAlignment = Alignment.Center
             ) {
-                // Permission is already granted, proceed with your logic
-                LaunchedEffect(Unit) { // Ensure this runs once when condition is met
-                    // startMpesaProcessing()
-                }
-                // You might want to show the main content of your screen here
-                Text("SMS Permission Granted. Processing MPESA messages...")
-            } else {
-                // Permission not yet granted, show the requester UI
-                SmsPermissionRequester(
-                    onPermissionGranted = {
-                        hasSmsPermission = true // Update state if needed
-                        //startMpesaProcessing()
-                        // Navigate to the next screen or update UI
-                    },
-                    onPermissionDenied = {
-                        // Handle the case where permission is denied
-                        // You might show an error, disable features, or guide the user to settings
-                        Toast.makeText(
-                            context,
-                            "SMS Permission is required for MPESA tracking.",
-                            Toast.LENGTH_LONG
-                        ).show()
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Please authenticate to continue", color = Color.White)
+                    errorMessage?.let {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = it, color = Color.Red)
                     }
-                )
-            }
-        }else{
-            if (!initialSmsProcessingStarted) {
-                // If permission is granted and we haven't started the worker yet,
-                // start it now.
-                LaunchedEffect(Unit) { // Use LaunchedEffect to run this once when conditions are met
-                    Toast.makeText(context, "SMS Permission granted. Starting MPESA SMS processing...", Toast.LENGTH_SHORT).show()
-                    enqueueMpesaSmsWorker(context)
-                    initialSmsProcessingStarted = true // Mark as started to avoid re-enqueueing on recomposition
                 }
-                Text("MPESA SMS Processing has been initiated. Your data will appear as it's processed.")
             }
         }
     }
+
 }
-
-
-
-
 
 
 @Composable
@@ -200,4 +202,9 @@ fun enqueueMpesaSmsWorker(context: android.content.Context) {
     //            }
     //        }
     //    }
+}
+
+fun isBiometricAvailable(context: Context): Boolean {
+    val biometricManager = BiometricManager.from(context)
+    return biometricManager.canAuthenticate(BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
 }
