@@ -46,7 +46,7 @@ interface MoneyDao {
     @Query("SELECT * FROM money_items WHERE person LIKE '%' || :name || '%' ORDER BY date DESC")
     fun getItemsByName(name: String): Flow<List<MoneyItem>> // Using LIKE for partial name matching
 
-    @Query("SELECT phone, SUM(amount) as totalAmount FROM money_items GROUP BY phone")
+    @Query("SELECT person, type,  phone, SUM(amount) as totalAmount FROM money_items GROUP BY phone, type ORDER BY totalAmount DESC")
     fun getTotalAmountGroupedByPhone(): Flow<List<PhoneTotal>> // Custom data class for result
 
     // Optional: Get all items (useful for debugging or other features)
@@ -61,6 +61,8 @@ interface MoneyDao {
 
 data class PhoneTotal(
     val phone: String?,
+    val person: String?,
+    val type: String,
     val totalAmount: Double
 )
 

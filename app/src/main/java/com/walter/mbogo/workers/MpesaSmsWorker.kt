@@ -8,7 +8,6 @@ import androidx.work.WorkerParameters
 import com.walter.mbogo.db.AppDatabase
 import com.walter.mbogo.db.MoneyItem
 import com.walter.mbogo.utility.ProcessedMessage
-import com.walter.mbogo.utility.TransactionTypes
 import com.walter.mbogo.utility.analyzeReceivedMessages
 import com.walter.mbogo.utility.analyzeSentMessages
 

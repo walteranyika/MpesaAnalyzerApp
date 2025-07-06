@@ -1,4 +1,4 @@
-package com.walter.mbogo.utility
+package com.walter.mbogo.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.walter.mbogo.db.AppDatabase
 import com.walter.mbogo.db.MoneyDao
 import com.walter.mbogo.db.MoneyItem
+import com.walter.mbogo.db.PhoneTotal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -17,12 +18,14 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     private val moneyDao: MoneyDao
     val allIncomes: LiveData<List<MoneyItem>>
     val allExpenses: LiveData<List<MoneyItem>>
+    val allAnalysis: LiveData<List<PhoneTotal>>
 
     init {
         moneyDao = AppDatabase.getDatabase(application).moneyDao()
         // Use your defined constants if available, otherwise use string literals directly
         allIncomes = moneyDao.getItemsByType(TransactionTypes.INCOME /* or "INCOME" */).asLiveData()
         allExpenses = moneyDao.getItemsByType(TransactionTypes.EXPENSE /* or "EXPENSE" */).asLiveData()
+        allAnalysis = moneyDao.getTotalAmountGroupedByPhone().asLiveData()
     }
 
     /**
@@ -50,9 +53,9 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     //     return moneyDao.getItemsByName(name).asLiveData()
     // }
 
-    // fun getTotalAmountGroupedByPhone(): LiveData<List<PhoneTotal>> {
-    //    return moneyDao.getTotalAmountGroupedByPhone().asLiveData()
-    // }
+     fun getTotalAmountGroupedByPhone(): LiveData<List<PhoneTotal>> {
+        return moneyDao.getTotalAmountGroupedByPhone().asLiveData()
+     }
 }
 
 

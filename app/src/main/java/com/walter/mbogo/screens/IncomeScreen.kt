@@ -16,10 +16,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.walter.mbogo.db.MoneyItem
-import com.walter.mbogo.utility.TransactionViewModel
+import com.walter.mbogo.utility.formatCurrency
+import com.walter.mbogo.viewmodels.TransactionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -52,7 +54,7 @@ fun IncomeScreen(transactionViewModel: TransactionViewModel = viewModel()) {
 fun IncomeItemRow(item: MoneyItem) {
     Column(modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()) {
         Text("${item.person}")
-        Text("Ksh ${item.amount}")
+        Text("${formatCurrency(item.amount.toLong())}", color = Color(0xFF28812D))
         Text(
             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 .format(java.util.Date(item.date))
