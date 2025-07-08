@@ -1,6 +1,7 @@
 package com.walter.mbogo.nav
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AllOut
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.Payments
@@ -27,7 +28,7 @@ sealed interface Destinations {
     data object Graphs : Destinations {
         override val route: String = "graphs"
         override val title: String = "Graphs"
-        override val icon: ImageVector = Icons.Filled.BarChart
+        override val icon: ImageVector = Icons.Filled.AllOut
     }
 }
 

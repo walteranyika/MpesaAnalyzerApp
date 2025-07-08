@@ -9,10 +9,11 @@ import com.walter.mbogo.db.AppDatabase
 import com.walter.mbogo.db.MoneyItem
 import com.walter.mbogo.db.SimpleDataManager
 import com.walter.mbogo.utility.ProcessedMessage
+import com.walter.mbogo.utility.analyzePaybillMessages
 import com.walter.mbogo.utility.analyzeReceivedMessages
 import com.walter.mbogo.utility.analyzeSentMessages
+import com.walter.mbogo.utility.analyzeTillMessages
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.last
 
 class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
     CoroutineWorker(appContext, workerParams) {
@@ -20,14 +21,10 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
     override suspend fun doWork(): Result {
         val moneyDao = AppDatabase.getDatabase(applicationContext).moneyDao()
         val dataManager = SimpleDataManager(applicationContext)
-
-
         try {
             Log.d("MpesaSmsWorker", "Starting MPESA SMS processing.")
-            // --- Your SMS Reading and Parsing Logic ---
             // 1. Get last processed timestamp (if implementing delta-updates)
             var lastTimestamp = dataManager.lastReadTimestampFlow.first()
-            //    Or, for initial import, you might not need this, or query all.
 
             val contentResolver = applicationContext.contentResolver
             val projection = arrayOf(
@@ -36,9 +33,6 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
                 Telephony.Sms.DATE
             )
             // Add selection and selectionArgs to filter messages
-            // e.g., Telephony.Sms.ADDRESS + " = ?", arrayOf("MPESA_SENDER_ID")
-            // e.g., Telephony.Sms.DATE + " > ?", arrayOf(lastTimestamp.toString())
-            // For initial scan, you might read a large batch or all relevant ones.
             // Be mindful of performance with very large inboxes.
             val selection = Telephony.Sms.ADDRESS + " = ? AND " + Telephony.Sms.DATE + " >= ?"
             val selectionArgs = arrayOf("MPESA", lastTimestamp.toString())//, lastTimestamp.toString()
@@ -53,9 +47,7 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
             )
 
             cursor?.use {
-
                 Log.d("MpesaSmsWorker", "Started processing")
-
                 val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
                 val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
                 val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS) // If needed
@@ -71,15 +63,17 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
                     }
 
                     var result: ProcessedMessage? = null
-                    if (body.contains("You have received")) {
-                        result = analyzeReceivedMessages(body, date)
+                    result = if (body.contains("You have received")) {
+                        analyzeReceivedMessages(body, date)
+                    } else if (body.contains("sent to ") && body.contains("for account")) {
+                        analyzePaybillMessages(body, date)
                     } else if (body.contains("sent to ")) {
-                        result = analyzeSentMessages(body, date)
+                        analyzeSentMessages(body, date)
+                    } else if (body.contains("paid to ")) {
+                        analyzeTillMessages(body, date)
                     } else {
-                        result = null
+                        null
                     }
-
-                    Log.d("PROCESSED", "doWork: $result")
                     if (result != null) {
                         val moneyItem = MoneyItem(
                             amount = result.amount,
