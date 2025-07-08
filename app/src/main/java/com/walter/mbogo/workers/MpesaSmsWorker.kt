@@ -11,6 +11,7 @@ import com.walter.mbogo.db.SimpleDataManager
 import com.walter.mbogo.utility.ProcessedMessage
 import com.walter.mbogo.utility.analyzeReceivedMessages
 import com.walter.mbogo.utility.analyzeSentMessages
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.last
 
 class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
@@ -25,7 +26,7 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
             Log.d("MpesaSmsWorker", "Starting MPESA SMS processing.")
             // --- Your SMS Reading and Parsing Logic ---
             // 1. Get last processed timestamp (if implementing delta-updates)
-            var lastTimestamp = dataManager.lastReadTimestampFlow.last()
+            var lastTimestamp = dataManager.lastReadTimestampFlow.first()
             //    Or, for initial import, you might not need this, or query all.
 
             val contentResolver = applicationContext.contentResolver
@@ -40,7 +41,9 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
             // For initial scan, you might read a large batch or all relevant ones.
             // Be mindful of performance with very large inboxes.
             val selection = Telephony.Sms.ADDRESS + " = ? AND " + Telephony.Sms.DATE + " >= ?"
-            val selectionArgs = arrayOf("MPESA", lastTimestamp.toString())
+            val selectionArgs = arrayOf("MPESA", lastTimestamp.toString())//, lastTimestamp.toString()
+            Log.d("MpesaSmsWorker", "Last Timestamp $lastTimestamp")
+
             val cursor = contentResolver.query(
                 Telephony.Sms.Inbox.CONTENT_URI,
                 projection,
@@ -50,6 +53,9 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
             )
 
             cursor?.use {
+
+                Log.d("MpesaSmsWorker", "Started processing")
+
                 val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
                 val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
                 val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS) // If needed
@@ -58,6 +64,8 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
                     val body = it.getString(bodyIndex)
                     val date = it.getLong(dateIndex)
                     val address = it.getString(addressIndex)
+                    Log.d("MpesaSmsWorker", "Last Timestamp ${lastTimestamp} Against $date")
+
                     if (date > lastTimestamp) {
                         lastTimestamp = date
                     }
@@ -87,8 +95,7 @@ class MpesaSmsWorker(appContext: Context, workerParams: WorkerParameters) :
                 }
                 dataManager.storeLastRead(lastTimestamp)
             }
-            Log.d("MpesaSmsWorker", "MPESA SMS processing finished.")
-            // TODO: Store the timestamp of the latest processed message for delta updates
+            Log.d("MpesaSmsWorker", "MPESA SMS processing finished. $lastTimestamp")
             return Result.success()
         } catch (e: Exception) {
             Log.e("MpesaSmsWorker", "Error processing MPESA SMS", e)

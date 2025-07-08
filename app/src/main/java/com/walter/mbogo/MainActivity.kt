@@ -1,9 +1,14 @@
 package com.walter.mbogo
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
@@ -34,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -47,12 +53,11 @@ import com.walter.mbogo.nav.bottomNavItems
 import com.walter.mbogo.screens.ChartsScreen
 import com.walter.mbogo.screens.ExpensesScreen
 import com.walter.mbogo.screens.IncomeScreen
-import com.walter.mbogo.security.BiometricHelper
+import com.walter.mbogo.screens.SmsPermissionRequester
 import com.walter.mbogo.ui.theme.MbogoTheme
 import com.walter.mbogo.workers.MpesaSmsWorker
 
-class MainActivity : FragmentActivity() {
-    @RequiresApi(Build.VERSION_CODES.P)
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -65,34 +70,33 @@ class MainActivity : FragmentActivity() {
 }
 
 
-@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun NavigationBarMotherScreen() { // Renamed from your original example for clarity
     val context = LocalContext.current
-    val activity = context as FragmentActivity
+   // val activity = context as Activity
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isAuthenticated by remember { mutableStateOf(false) }
+    var isAuthenticated by remember { mutableStateOf(true) }
 
 
-    val biometricHelper = remember {
-        BiometricHelper(
-            activity = activity,
-            onAuthSuccess = {
-                isAuthenticated = true
-                errorMessage = null
-            },
-            onAuthError = {
-                errorMessage = it
-            }
-        )
-    }
+    /*  val biometricHelper = remember {
+          BiometricHelper(
+              activity = activity,
+              onAuthSuccess = {
+                  isAuthenticated = true
+                  errorMessage = null
+              },
+              onAuthError = {
+                  errorMessage = it
+              }
+          )
+      }*/
 
 
-    LaunchedEffect(Unit) {
-        if (isBiometricAvailable(context)) {
-            biometricHelper.authenticate()
-        }
-    }
+    /*   LaunchedEffect(Unit) {
+           if (isBiometricAvailable(context)) {
+               biometricHelper.authenticate()
+           }
+       }*/
 
     val navController = rememberNavController()
     Box(modifier = Modifier.fillMaxSize()) {
@@ -110,7 +114,65 @@ fun NavigationBarMotherScreen() { // Renamed from your original example for clar
                 composable(Destinations.Graphs.route) { ChartsScreen() }
             }
 
-            // Your SMS permission handling here as before...
+            var hasSmsPermission by remember { mutableStateOf(false) } // Manage state if needed higher up
+            val context = LocalContext.current
+            var initialSmsProcessingStarted by remember { mutableStateOf(false) }
+            //Check initial permission status (optional, if you want to update UI immediately)
+            LaunchedEffect(Unit) {
+                hasSmsPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_SMS
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+            if (!hasSmsPermission) {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_SMS
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    // Permission is already granted, proceed with your logic
+                    LaunchedEffect(Unit) { // Ensure this runs once when condition is met
+                        // startMpesaProcessing()
+                    }
+                    // You might want to show the main content of your screen here
+                    Text("SMS Permission Granted. Processing MPESA messages...")
+                } else {
+                    // Permission not yet granted, show the requester UI
+                    SmsPermissionRequester(
+                        onPermissionGranted = {
+                            hasSmsPermission = true // Update state if needed
+                            //startMpesaProcessing()
+                            // Navigate to the next screen or update UI
+                        },
+                        onPermissionDenied = {
+                            // Handle the case where permission is denied
+                            // You might show an error, disable features, or guide the user to settings
+                            Toast.makeText(
+                                context,
+                                "SMS Permission is required for MPESA tracking.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+                }
+            } else {
+                if (!initialSmsProcessingStarted) {
+                    // If permission is granted and we haven't started the worker yet,
+                    // start it now.
+                    LaunchedEffect(Unit) { // Use LaunchedEffect to run this once when conditions are met
+                        Toast.makeText(
+                            context,
+                            "SMS Permission granted. Starting MPESA SMS processing...",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        enqueueMpesaSmsWorker(context)
+                        initialSmsProcessingStarted =
+                            true // Mark as started to avoid re-enqueueing on recomposition
+                    }
+                    Text("MPESA SMS Processing has been initiated. Your data will appear as it's processed.")
+                }
+            }
+
         }
 
         // 🔒 Overlay if not authenticated
